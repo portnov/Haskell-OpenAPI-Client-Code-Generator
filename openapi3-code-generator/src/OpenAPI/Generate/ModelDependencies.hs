@@ -10,7 +10,7 @@ module OpenAPI.Generate.ModelDependencies
   )
 where
 
-import Data.List (find, isPrefixOf, partition)
+import Data.List (find, isPrefixOf, isInfixOf, partition)
 import qualified Data.Maybe as Maybe
 import qualified Data.Set as Set
 import Data.Text (Text)
@@ -95,6 +95,7 @@ isTypeAliasModule =
     ( \l ->
         isPrefixOf "--" l
           || isPrefixOf "type" l
+          || isInfixOf "properties" l
           || null l
     )
     . lines

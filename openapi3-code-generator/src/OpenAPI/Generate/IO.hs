@@ -10,6 +10,7 @@ import Control.Exception
 import Control.Monad
 import qualified Data.Bifunctor as BF
 import qualified Data.Text as T
+import qualified Data.Map as Map
 import Data.Version (showVersion)
 import Language.Haskell.TH
 import qualified OpenAPI.Generate.Doc as Doc
@@ -198,10 +199,11 @@ data OutputFiles = OutputFiles
 
 generateFilesToCreate :: OAT.OpenApiSpecification -> OAO.Settings -> IO OutputFiles
 generateFilesToCreate spec settings = do
+  let refMap = Ref.buildReferenceMap spec
   let outputDirectory = T.unpack $ OAO.settingOutputDir settings
       moduleName = T.unpack $ OAO.settingModuleName settings
       packageName = T.unpack $ OAO.settingPackageName settings
-      env = OAM.createEnvironment settings $ Ref.buildReferenceMap spec
+      env = OAM.createEnvironment settings $ refMap
       logMessages = mapM_ (putStrLn . T.unpack) . OAL.filterAndTransformLogs (OAO.settingLogLevel settings)
       showAndReplace = replaceOpenAPI moduleName . show
       ((operationsQ, operationDependencies), logs) = OAM.runGenerator env $ defineOperations moduleName spec

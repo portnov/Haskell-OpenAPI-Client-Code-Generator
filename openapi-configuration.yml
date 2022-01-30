@@ -1,7 +1,6 @@
-specification: .circleci/specifications/stripe-api.yml
 outputDir: out
-packageName: stripeapi
-moduleName: StripeAPI
+packageName: linode-openapi
+moduleName: Linode
 logLevel: WARN
 force: true
 incremental: false

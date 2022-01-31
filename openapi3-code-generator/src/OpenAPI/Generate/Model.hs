@@ -101,7 +101,14 @@ defineModelForSchemaProperty (schemaName, propertyName, isItems, schema) = do
           OAT.Reference reference -> do
             refName <- haskellifyNameM True $ getSchemaNameFromReference reference
             OAM.logTrace $ "Encountered property reference '" <> reference <> "' which references the type '" <> T.pack (nameBase refName) <> "'"
-            pure (varT refName, (emptyDoc, Set.empty))
+            mbSchema <- OAM.getSchemaReferenceM reference
+            case mbSchema of
+              Nothing -> do
+                  OAM.logError "Reference can not be resolved"
+                  pure (varT refName, (emptyDoc, Set.empty))
+              Just refSchema -> do
+                  OAM.logWarning $ "Referenced schema: " <> T.pack (show $ OAS.type' refSchema)
+                  defineModelForSchemaConcrete CreateTypeAlias name refSchema
     OAM.logWarning $ "Generate Schema/Property schema: " <> name <> ": " <> T.intercalate ", " (Set.toList $ snd $ snd namedSchema)
     pure (transformToModuleName name, snd namedSchema)
   where

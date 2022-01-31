@@ -165,10 +165,27 @@ collectSchemaReferences spec =
     collectFromOperations (Just op) =
         Set.fromList (Maybe.catMaybes [fromParameterReference p | p <- getParametersFromOperation op])
         `Set.union` collectFromRequest (OAT.requestBody op)
+        `Set.union` collectFromResponse (OAT.responses (op :: OAT.OperationObject))
 
     collectFromRequest :: Maybe (OAT.Referencable OAT.RequestBodyObject) -> Set.Set SchemaPropertyReference
     collectFromRequest (Just (OAT.Concrete body)) = Set.unions $ map collectFromMediaType $ Map.elems $ getRequestBodyContent body
     collectFromRequest _ = Set.empty
+
+    collectFromResponse :: OAT.ResponsesObject -> Set.Set SchemaPropertyReference
+    collectFromResponse rs = Set.unions $ map collectFromResponseObject $ concat [
+          Maybe.maybeToList (getResponsesObjectDefault rs),
+          Maybe.maybeToList (OAT.range1XX rs),
+          Maybe.maybeToList (OAT.range2XX rs),
+          Maybe.maybeToList (OAT.range3XX rs),
+          Maybe.maybeToList (OAT.range4XX rs),
+          Maybe.maybeToList (OAT.range5XX rs),
+          Map.elems (OAT.perStatusCode rs)
+        ]
+
+    collectFromResponseObject :: OAT.Referencable OAT.ResponseObject -> Set.Set SchemaPropertyReference
+    collectFromResponseObject (OAT.Concrete rs) =
+      Set.unions $ map collectFromMediaType $ Map.elems $ getResponseObjectContent rs
+    collectFromResponseObject _ = Set.empty
 
     collectFromMediaType :: OAT.MediaTypeObject -> Set.Set SchemaPropertyReference
     collectFromMediaType m =
@@ -181,6 +198,12 @@ collectSchemaReferences spec =
 
     getRequestBodyContent :: OAT.RequestBodyObject -> Map.Map Text OAT.MediaTypeObject
     getRequestBodyContent = OAT.content
+
+    getResponseObjectContent :: OAT.ResponseObject -> Map.Map Text OAT.MediaTypeObject
+    getResponseObjectContent = OAT.content
+
+    getResponsesObjectDefault :: OAT.ResponsesObject -> Maybe (OAT.Referencable OAT.ResponseObject)
+    getResponsesObjectDefault = OAT.default'
 
     fromParameterReference :: OAT.Referencable OAT.ParameterObject -> Maybe SchemaPropertyReference
     fromParameterReference (OAT.Reference ref) = parseSchemaReference ref

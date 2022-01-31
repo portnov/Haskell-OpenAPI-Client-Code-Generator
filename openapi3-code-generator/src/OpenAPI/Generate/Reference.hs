@@ -52,6 +52,7 @@ buildReferenceMap =
   Map.fromList
     . ( \o ->
           buildReferencesForComponentType "schemas" SchemaReference (OAT.schemas o)
+            <> buildReferencesForSchemaProperties (OAT.schemas o)
             <> buildReferencesForComponentType "responses" ResponseReference (OAT.responses (o :: OAT.ComponentsObject))
             <> buildReferencesForComponentType "parameters" ParameterReference (OAT.parameters (o :: OAT.ComponentsObject))
             <> buildReferencesForComponentType "examples" ExampleReference (OAT.examples (o :: OAT.ComponentsObject))
@@ -191,4 +192,16 @@ collectSchemaReferences spec =
         ["#", "components", "schemas", schemaName, "properties", propertyName] -> Just (schemaName, propertyName, False)
         ["#", "components", "schemas", schemaName, "properties", propertyName, "items"] -> Just (schemaName, propertyName, True)
         _ -> Nothing
+
+buildReferencesForSchemaProperties :: Map.Map Text OAS.Schema -> [(Text, ComponentReference)]
+buildReferencesForSchemaProperties schemas = concatMap listSchemaProperties (Map.toList schemas)
+  where
+    listSchemaProperties :: (Text, OAS.Schema) -> [(Text, ComponentReference)]
+    listSchemaProperties (schemaName, OAT.Concrete schema) = Maybe.mapMaybe (propertyReference schemaName) (Map.toList $ OAS.properties schema)
+    listSchemaProperties _ = []
+
+    propertyReference :: Text -> (Text, OAS.Schema) -> Maybe (Text, ComponentReference)
+    propertyReference schemaName (propertyName, OAT.Concrete propertySchema) =
+        Just ("#/components/schemas/" <> schemaName <> "/properties/" <> propertyName, SchemaReference propertySchema)
+    propertyReference _ _ = Nothing
 

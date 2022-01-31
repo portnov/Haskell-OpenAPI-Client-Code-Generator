@@ -10,6 +10,7 @@ module OpenAPI.Generate.ModelDependencies
   )
 where
 
+import Control.Monad
 import Data.List (find, isPrefixOf, partition)
 import qualified Data.Maybe as Maybe
 import qualified Data.Set as Set
@@ -72,6 +73,10 @@ getModelModulesFromModelsWithDependencies mainModuleName operationAndWhiteListDe
           )
           modelsWithContent
       modelModuleNames = fmap (joinWithPoint . fst) modules
+  forM_ typeAliasModels $ \(name, (content, dependencies)) -> do
+      runIO $ print $ "TypeAlias: " <> name
+      runIO $ print content
+      runIO $ print $ "TypeAlias dependencies: " <> T.intercalate ", " (Set.toList dependencies)
   pure $
     ( [typesModule],
       Doc.createModuleHeaderWithReexports

@@ -210,6 +210,7 @@ generateFilesToCreate spec settings = do
   operationModules <- runQ operationsQ
   configurationInfo <- runQ $ defineConfigurationInformation moduleName spec
   let schemaPropertyReferences = Set.toList $ Ref.collectSchemaReferences spec
+  putStrLn $ "Schema references: " ++ show schemaPropertyReferences
   let (modelsQ, logsModels) = OAM.runGenerator env $ defineModels moduleName spec operationDependencies schemaPropertyReferences
   logMessages logsModels
   modelModules <- fmap (BF.second showAndReplace) <$> runQ modelsQ

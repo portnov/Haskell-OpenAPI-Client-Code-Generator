@@ -134,7 +134,8 @@ type SchemaPropertyReference = (Text, Text, Bool)
 
 collectSchemaReferences :: OAT.OpenApiSpecification -> Set.Set SchemaPropertyReference
 collectSchemaReferences spec = 
-        collectFromPaths (Map.elems $ OAT.paths spec) `Set.union` collectFromSchemas (Map.elems $ OAT.schemas $ OAT.components spec)
+        collectFromPaths (Map.elems $ OAT.paths spec)
+        `Set.union` collectFromSchemas (Map.elems $ OAT.schemas $ OAT.components spec)
   where
     collectFromSchemas :: [OAT.Schema] -> Set.Set SchemaPropertyReference
     collectFromSchemas schemas =
@@ -161,7 +162,24 @@ collectSchemaReferences spec =
     collectFromOperations :: Maybe OAT.OperationObject -> Set.Set SchemaPropertyReference
     collectFromOperations Nothing = Set.empty
     collectFromOperations (Just op) =
-      Set.fromList $ Maybe.catMaybes [fromParameterReference p | p <- getParametersFromOperation op]
+        Set.fromList (Maybe.catMaybes [fromParameterReference p | p <- getParametersFromOperation op])
+        `Set.union` collectFromRequest (OAT.requestBody op)
+
+    collectFromRequest :: Maybe (OAT.Referencable OAT.RequestBodyObject) -> Set.Set SchemaPropertyReference
+    collectFromRequest (Just (OAT.Concrete body)) = Set.unions $ map collectFromMediaType $ Map.elems $ getRequestBodyContent body
+    collectFromRequest _ = Set.empty
+
+    collectFromMediaType :: OAT.MediaTypeObject -> Set.Set SchemaPropertyReference
+    collectFromMediaType m =
+      case getMediaTypeSchema m of
+        Nothing -> Set.empty
+        Just schema -> collectFromSchemas [schema]
+
+    getMediaTypeSchema :: OAT.MediaTypeObject -> Maybe OAT.Schema
+    getMediaTypeSchema = OAT.schema
+
+    getRequestBodyContent :: OAT.RequestBodyObject -> Map.Map Text OAT.MediaTypeObject
+    getRequestBodyContent = OAT.content
 
     fromParameterReference :: OAT.Referencable OAT.ParameterObject -> Maybe SchemaPropertyReference
     fromParameterReference (OAT.Reference ref) = parseSchemaReference ref
@@ -170,7 +188,7 @@ collectSchemaReferences spec =
     parseSchemaReference :: Text -> Maybe SchemaPropertyReference
     parseSchemaReference ref =
       case T.splitOn "/" ref of
-        ["#", "components", "schemas", schemaName, "properties", propertyName] -> Just (schemaName, propertyName, True)
+        ["#", "components", "schemas", schemaName, "properties", propertyName] -> Just (schemaName, propertyName, False)
         ["#", "components", "schemas", schemaName, "properties", propertyName, "items"] -> Just (schemaName, propertyName, True)
         _ -> Nothing
 

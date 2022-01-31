@@ -95,7 +95,13 @@ showAesonValue = LT.toStrict . Aeson.encodeToLazyText
 
 defineModelForSchemaProperty :: (Text, Text, Bool, OAS.Schema) -> OAM.Generator Dep.ModelWithDependencies
 defineModelForSchemaProperty (schemaName, propertyName, isItems, schema) = do
-    namedSchema <- OAM.nested name $ defineModelForSchemaNamedWithTypeAliasStrategy CreateTypeAlias name schema
+    namedSchema <- OAM.nested name $ do
+        case schema of
+          OAT.Concrete concrete -> defineModelForSchemaConcrete CreateTypeAlias name concrete
+          OAT.Reference reference -> do
+            refName <- haskellifyNameM True $ getSchemaNameFromReference reference
+            OAM.logTrace $ "Encountered property reference '" <> reference <> "' which references the type '" <> T.pack (nameBase refName) <> "'"
+            pure (varT refName, (emptyDoc, Set.empty))
     OAM.logWarning $ "Generate Schema/Property schema: " <> name <> ": " <> T.intercalate ", " (Set.toList $ snd $ snd namedSchema)
     pure (transformToModuleName name, snd namedSchema)
   where

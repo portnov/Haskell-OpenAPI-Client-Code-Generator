@@ -12,6 +12,7 @@ module OpenAPI.Generate.Model
     getConstraintDescriptionsOfSchema,
     defineModelForSchemaNamed,
     defineModelForSchema,
+    defineModelForSchemaProperty,
     TypeWithDeclaration,
   )
 where
@@ -91,6 +92,16 @@ aesonValueToName =
 
 showAesonValue :: Aeson.Value -> Text
 showAesonValue = LT.toStrict . Aeson.encodeToLazyText
+
+defineModelForSchemaProperty :: (Text, Text, Bool, OAS.Schema) -> OAM.Generator Dep.ModelWithDependencies
+defineModelForSchemaProperty (schemaName, propertyName, isItems, schema) = do
+    namedSchema <- OAM.nested name $ defineModelForSchemaNamedWithTypeAliasStrategy CreateTypeAlias name schema
+    OAM.logWarning $ "Generate Schema/Property schema: " <> name <> ": " <> T.intercalate ", " (Set.toList $ snd $ snd namedSchema)
+    pure (transformToModuleName name, snd namedSchema)
+  where
+    name
+      | isItems = schemaName <> "Properties" <> T.toTitle propertyName <> "Items"
+      | otherwise = schemaName <> "Properties" <> T.toTitle propertyName
 
 -- | Defines all the models for a schema
 defineModelForSchema :: Text -> OAS.Schema -> OAM.Generator Dep.ModelWithDependencies

@@ -7,6 +7,7 @@
 module OpenAPI.Generate.Reference
   ( ReferenceMap,
     ComponentReference (..),
+    SchemaPropertyReference,
     buildReferenceMap,
     getSchemaReference,
     getResponseReference,
@@ -15,13 +16,16 @@ module OpenAPI.Generate.Reference
     getRequestBodyReference,
     getHeaderReference,
     getSecuritySchemeReference,
+    collectSchemaReferences,
   )
 where
 
 import Control.Monad
 import qualified Data.Bifunctor as BF
 import qualified Data.Map as Map
+import qualified Data.Set as Set
 import qualified Data.Maybe as Maybe
+import qualified Data.Text as T
 import Data.Text (Text)
 import GHC.Generics
 import qualified OpenAPI.Generate.Types as OAT
@@ -122,3 +126,51 @@ getSecuritySchemeReference :: Text -> ReferenceMap -> Maybe OAT.SecuritySchemeOb
 getSecuritySchemeReference = createReferenceLookup $ \case
   SecuritySchemeReference r -> Just r
   _ -> Nothing
+
+getParametersFromOperation :: OAT.OperationObject -> [OAT.Referencable OAT.ParameterObject]
+getParametersFromOperation = OAT.parameters
+
+type SchemaPropertyReference = (Text, Text, Bool)
+
+collectSchemaReferences :: OAT.OpenApiSpecification -> Set.Set SchemaPropertyReference
+collectSchemaReferences spec = 
+        collectFromPaths (Map.elems $ OAT.paths spec) `Set.union` collectFromSchemas (Map.elems $ OAT.schemas $ OAT.components spec)
+  where
+    collectFromSchemas :: [OAT.Schema] -> Set.Set SchemaPropertyReference
+    collectFromSchemas schemas =
+      let concrete = Set.unions [collectFromSchema s | OAT.Concrete s <- schemas]
+          references = Set.fromList $ Maybe.catMaybes [parseSchemaReference ref | OAT.Reference ref <- schemas]
+      in  concrete `Set.union` references
+
+    collectFromSchema :: OAS.SchemaObject -> Set.Set SchemaPropertyReference
+    collectFromSchema schema = Set.unions [
+        collectFromSchemas $ Map.elems (OAS.properties schema),
+        collectFromSchemas $ OAS.allOf schema,
+        collectFromSchemas $ OAS.oneOf schema,
+        collectFromSchemas $ OAS.anyOf schema,
+        collectFromSchemas $ Maybe.maybeToList $ OAS.items schema
+      ]
+
+    collectFromPaths :: [OAT.PathItemObject] -> Set.Set SchemaPropertyReference
+    collectFromPaths paths = Set.unions $ map collectFromPath paths
+
+    collectFromPath :: OAT.PathItemObject -> Set.Set SchemaPropertyReference
+    collectFromPath po =
+      Set.unions [collectFromOperations (method po) | method <- [OAT.get, OAT.put, OAT.post, OAT.delete, OAT.options, OAT.head, OAT.patch, OAT.trace]]
+
+    collectFromOperations :: Maybe OAT.OperationObject -> Set.Set SchemaPropertyReference
+    collectFromOperations Nothing = Set.empty
+    collectFromOperations (Just op) =
+      Set.fromList $ Maybe.catMaybes [fromParameterReference p | p <- getParametersFromOperation op]
+
+    fromParameterReference :: OAT.Referencable OAT.ParameterObject -> Maybe SchemaPropertyReference
+    fromParameterReference (OAT.Reference ref) = parseSchemaReference ref
+    fromParameterReference _ = Nothing
+
+    parseSchemaReference :: Text -> Maybe SchemaPropertyReference
+    parseSchemaReference ref =
+      case T.splitOn "/" ref of
+        ["#", "components", "schemas", schemaName, "properties", propertyName] -> Just (schemaName, propertyName, True)
+        ["#", "components", "schemas", schemaName, "properties", propertyName, "items"] -> Just (schemaName, propertyName, True)
+        _ -> Nothing
+

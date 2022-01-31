@@ -10,6 +10,7 @@ import Control.Exception
 import Control.Monad
 import qualified Data.Bifunctor as BF
 import qualified Data.Text as T
+import qualified Data.Set as Set
 import Data.Version (showVersion)
 import Language.Haskell.TH
 import qualified OpenAPI.Generate.Doc as Doc
@@ -208,7 +209,8 @@ generateFilesToCreate spec settings = do
   logMessages logs
   operationModules <- runQ operationsQ
   configurationInfo <- runQ $ defineConfigurationInformation moduleName spec
-  let (modelsQ, logsModels) = OAM.runGenerator env $ defineModels moduleName spec operationDependencies
+  let schemaPropertyReferences = Set.toList $ Ref.collectSchemaReferences spec
+  let (modelsQ, logsModels) = OAM.runGenerator env $ defineModels moduleName spec operationDependencies schemaPropertyReferences
   logMessages logsModels
   modelModules <- fmap (BF.second showAndReplace) <$> runQ modelsQ
   let (securitySchemesQ, logs') = OAM.runGenerator env $ defineSecuritySchemes moduleName spec

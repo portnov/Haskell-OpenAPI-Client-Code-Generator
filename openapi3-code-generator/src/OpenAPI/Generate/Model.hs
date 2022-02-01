@@ -518,16 +518,21 @@ defineNewSchemaForAllOf schemaName description schemas = do
   schemasWithDependencies <- mapMaybeM (resolveSchemaReference schemaName) schemas
   let concreteSchemas = fmap fst schemasWithDependencies
       newDependencies = Set.unions $ fmap snd schemasWithDependencies
-  (propertiesCombined, requiredCombined) <- fuseSchemasAllOf schemaName schemas
-  if Map.null propertiesCombined
-    then do
-      OAM.logWarning "allOf does not contain any schemas with properties."
-      pure Nothing
+  -- In general, fusing schemas for allOf is only supported when all sub-schemas are Object schemas;
+  -- but we can support a simple special case, when allOf consists of exactly one non-Object schema.
+  if length schemas == 1 && OAS.type' (head concreteSchemas) /= OAS.SchemaTypeObject
+    then pure $ Just (head concreteSchemas, newDependencies)
     else do
-      let schemaPrototype = head concreteSchemas
-          newSchema = schemaPrototype {OAS.properties = propertiesCombined, OAS.required = requiredCombined, OAS.description = Just description}
-      OAM.logTrace $ "Define allOf as record named '" <> schemaName <> "'"
-      pure $ Just (newSchema, newDependencies)
+      (propertiesCombined, requiredCombined) <- fuseSchemasAllOf schemaName schemas
+      if Map.null propertiesCombined
+        then do
+          OAM.logWarning "allOf does not contain any schemas with properties."
+          pure Nothing
+        else do
+          let schemaPrototype = head concreteSchemas
+              newSchema = schemaPrototype {OAS.properties = propertiesCombined, OAS.required = requiredCombined, OAS.description = Just description}
+          OAM.logTrace $ "Define allOf as record named '" <> schemaName <> "'"
+          pure $ Just (newSchema, newDependencies)
 
 -- | defines an array
 defineArrayModelForSchema :: TypeAliasStrategy -> Text -> OAS.SchemaObject -> OAM.Generator TypeWithDeclaration
